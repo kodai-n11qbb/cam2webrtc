@@ -1,7 +1,9 @@
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::collections::HashMap;
 use log::{info, error, debug};
 use byteorder::{BigEndian, ByteOrder};
+use tokio::net::UdpSocket;
+use std::sync::Arc;
 
 // STUN message types
 const BINDING_REQUEST: u16 = 0x0001;
@@ -14,17 +16,19 @@ const XOR_MAPPED_ADDRESS: u16 = 0x0020;
 const ERROR_CODE: u16 = 0x0009;
 
 pub struct StunServer {
-    socket: UdpSocket,
+    socket: Arc<UdpSocket>,
     local_addrs: HashMap<SocketAddr, SocketAddr>,
 }
 
 impl StunServer {
     pub fn new(bind_addr: SocketAddr) -> std::io::Result<Self> {
-        let socket = UdpSocket::bind(bind_addr)?;
+        let socket = std::net::UdpSocket::bind(bind_addr)?;
+        socket.set_nonblocking(true)?;
+        let tokio_socket = UdpSocket::from_std(socket)?;
         info!("STUN server listening on {}", bind_addr);
         
         Ok(Self {
-            socket,
+            socket: Arc::new(tokio_socket),
             local_addrs: HashMap::new(),
         })
     }
@@ -33,12 +37,12 @@ impl StunServer {
         let mut buf = [0u8; 1024];
         
         loop {
-            match self.socket.recv_from(&mut buf) {
+            match self.socket.recv_from(&mut buf).await {
                 Ok((len, src_addr)) => {
                     let packet = &buf[..len];
                     
                     if let Some(response) = self.handle_stun_packet(packet, src_addr) {
-                        if let Err(e) = self.socket.send_to(&response, src_addr) {
+                        if let Err(e) = self.socket.send_to(&response, src_addr).await {
                             error!("Failed to send STUN response: {}", e);
                         }
                     }

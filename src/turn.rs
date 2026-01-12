@@ -257,9 +257,10 @@ impl TurnServer {
     
     fn get_next_relay_port(&mut self) -> u16 {
         let port = self.next_relay_port;
-        self.next_relay_port += 1;
-        if self.next_relay_port > 65535 {
+        if self.next_relay_port == 65535 {
             self.next_relay_port = 49152; // Wrap around
+        } else {
+            self.next_relay_port += 1;
         }
         port
     }

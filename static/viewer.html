@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,15 +13,18 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
+
         .container {
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
+
         .video-container {
             margin: 20px 0;
         }
+
         video {
             width: 100%;
             max-width: 640px;
@@ -28,9 +32,11 @@
             border-radius: 4px;
             background: #000;
         }
+
         .controls {
             margin: 20px 0;
         }
+
         input[type="text"] {
             padding: 8px;
             margin: 5px;
@@ -38,6 +44,7 @@
             border-radius: 4px;
             width: 200px;
         }
+
         button {
             padding: 10px 20px;
             margin: 5px;
@@ -46,63 +53,80 @@
             cursor: pointer;
             font-size: 14px;
         }
+
         .btn-primary {
             background-color: #007bff;
             color: white;
         }
+
         .btn-secondary {
             background-color: #6c757d;
             color: white;
         }
+
         .status {
             padding: 10px;
             margin: 10px 0;
             border-radius: 4px;
         }
+
         .status.info {
             background-color: #d1ecf1;
             border: 1px solid #bee5eb;
             color: #0c5460;
         }
+
         .status.success {
             background-color: #d4edda;
             border: 1px solid #c3e6cb;
             color: #155724;
         }
+
         .status.error {
             background-color: #f8d7da;
             border: 1px solid #f5c6cb;
             color: #721c24;
         }
+
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
             margin: 20px 0;
         }
+
         .video-item {
             background: #f8f9fa;
             padding: 10px;
             border-radius: 4px;
         }
+
         .video-item h4 {
             margin: 0 0 10px 0;
             color: #495057;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Cam2WebRTC Viewer</h1>
-        
+
         <div class="controls">
             <input type="text" id="roomId" placeholder="ルームIDを入力">
             <button id="connectRoom" class="btn-primary">ルームに接続</button>
             <button id="autoConnect" class="btn-secondary">自動接続モード</button>
         </div>
-        
+
         <div id="status" class="status info">準備完了</div>
-        
+
+        <div class="video-container">
+            <h3>ルーム情報:</h3>
+            <div id="roomInfo">
+                <p>接続数: <span id="connectionCount">0</span></p>
+            </div>
+        </div>
+
         <div class="video-grid" id="videoGrid">
             <!-- 動的にビデオ要素が追加される -->
         </div>
@@ -114,20 +138,22 @@
                 this.statusDiv = document.getElementById('status');
                 this.roomIdInput = document.getElementById('roomId');
                 this.videoGrid = document.getElementById('videoGrid');
-                
+
+                this.connectionCountSpan = document.getElementById('connectionCount');
+
                 this.ws = null;
                 this.roomId = null;
                 this.peerConnections = new Map();
                 this.autoConnectMode = false;
                 this.connectionId = this.generateConnectionId();
-                
+
                 this.initializeEventListeners();
             }
-            
+
             initializeEventListeners() {
                 document.getElementById('connectRoom').addEventListener('click', () => this.connectToRoom());
                 document.getElementById('autoConnect').addEventListener('click', () => this.toggleAutoConnect());
-                
+
                 // URLパラメータからルームIDを取得
                 const urlParams = new URLSearchParams(window.location.search);
                 const roomId = urlParams.get('room');
@@ -136,22 +162,22 @@
                     this.connectToRoom();
                 }
             }
-            
+
             async connectToRoom() {
                 const roomId = this.roomIdInput.value.trim();
                 if (!roomId) {
                     this.updateStatus('ルームIDを入力してください', 'error');
                     return;
                 }
-                
+
                 this.roomId = roomId;
                 await this.startConnection();
             }
-            
+
             toggleAutoConnect() {
                 this.autoConnectMode = !this.autoConnectMode;
                 const btn = document.getElementById('autoConnect');
-                
+
                 if (this.autoConnectMode) {
                     btn.textContent = '自動接続停止';
                     btn.className = 'btn-primary';
@@ -164,26 +190,26 @@
                     this.updateStatus('自動接続モードを停止', 'info');
                 }
             }
-            
+
             startAutoConnect() {
                 // 定期的にルームを監視
                 this.autoConnectInterval = setInterval(() => {
                     this.checkForRooms();
                 }, 5000);
             }
-            
+
             stopAutoConnect() {
                 if (this.autoConnectInterval) {
                     clearInterval(this.autoConnectInterval);
                     this.autoConnectInterval = null;
                 }
             }
-            
+
             async checkForRooms() {
                 // 簡易的な実装 - 実際はAPIから利用可能なルームを取得
                 // ここではデモ用に固定ルームIDを試す
                 const commonRoomIds = ['demo', 'test', 'public'];
-                
+
                 for (const roomId of commonRoomIds) {
                     try {
                         const response = await fetch(`/api/rooms/${roomId}`);
@@ -198,27 +224,29 @@
                     }
                 }
             }
-            
+
             async startConnection() {
                 try {
                     this.updateStatus(`ルーム ${this.roomId} に接続中...`, 'info');
-                    
-                    // Connect to WebSocket
-                    this.ws = new WebSocket(`ws://localhost:8080/ws/${this.roomId}`);
-                    
+
+                    // Connect to WebSocket (use relative path)
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    this.ws = new WebSocket(`${protocol}//${window.location.host}/ws/${this.roomId}`);
+
                     this.ws.onopen = () => {
                         this.updateStatus('WebSocket接続完了', 'success');
                         this.joinRoom();
                     };
-                    
+
                     this.ws.onmessage = (event) => {
                         this.handleSignalingMessage(JSON.parse(event.data));
                     };
-                    
+
                     this.ws.onerror = (error) => {
-                        this.updateStatus(`WebSocketエラー: ${error}`, 'error');
+                        this.updateStatus(`WebSocketエラー: 接続きません`, 'error');
+                        console.error(error);
                     };
-                    
+
                     this.ws.onclose = () => {
                         this.updateStatus('WebSocket接続が切断されました', 'error');
                         if (this.autoConnectMode) {
@@ -230,142 +258,178 @@
                     this.updateStatus(`接続エラー: ${error.message}`, 'error');
                 }
             }
-            
+
             joinRoom() {
                 const message = {
                     type: 'join',
                     connection_id: this.connectionId,
                     is_sender: false
                 };
-                this.ws.send(JSON.stringify(message));
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify(message));
+                }
             }
-            
+
             async handleSignalingMessage(message) {
                 switch (message.type) {
                     case 'room_info':
-                        this.updateStatus(`ルーム情報: ${message.data.mode} (${message.data.connection_count}接続)`, 'info');
+                        this.updateStatus(`ルームに接続しました (P2P Mesh)`, 'info');
+                        if (message.data.connection_count !== undefined) {
+                            this.connectionCountSpan.textContent = message.data.connection_count;
+                        }
                         break;
-                        
+
+                    case 'new_peer':
+                        this.updateStatus(`新しいピアが参加しました: ${message.data.connection_id}`, 'info');
+                        if (message.data.connection_count !== undefined) {
+                            this.connectionCountSpan.textContent = message.data.connection_count;
+                        }
+                        break;
+
+                    case 'leave':
+                        this.updateStatus(`ピアが退出しました: ${message.data.connection_id}`, 'info');
+                        if (message.data.connection_count !== undefined) {
+                            this.connectionCountSpan.textContent = message.data.connection_count;
+                        }
+                        // Cleanup peer connection if it exists
+                        if (this.peerConnections.has(message.data.connection_id)) {
+                            const pc = this.peerConnections.get(message.data.connection_id);
+                            pc.close();
+                            this.peerConnections.delete(message.data.connection_id);
+                            const videoElem = document.getElementById(`video-${message.data.connection_id}`);
+                            if (videoElem) videoElem.remove();
+                        }
+                        break;
+
                     case 'offer':
                         await this.handleOffer(message);
                         break;
-                        
+
                     case 'ice_candidate':
                         await this.handleIceCandidate(message);
                         break;
-                        
+
                     case 'error':
                         this.updateStatus(`エラー: ${message.data.error}`, 'error');
                         break;
                 }
             }
-            
+
             async handleOffer(message) {
                 const senderId = message.sender_id;
-                const offerId = message.offer_id || senderId;
-                
-                // Create video element for this stream
-                this.createVideoElement(offerId, senderId);
-                
-                // Create peer connection
-                const pc = await this.createPeerConnection(offerId);
-                
-                // Set remote description
-                await pc.setRemoteDescription(new RTCSessionDescription(message.data));
-                
-                // Create answer
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                
-                // Send answer
-                const response = {
-                    type: 'answer',
-                    connection_id: this.connectionId,
-                    sender_id: this.connectionId,
-                    data: answer
-                };
-                this.ws.send(JSON.stringify(response));
-            }
-            
-            async createPeerConnection(streamId) {
+                this.updateStatus(`オファーを受信 (Sender: ${senderId})`, 'info');
+
+                // Close existing connection from this sender if any
+                if (this.peerConnections.has(senderId)) {
+                    this.peerConnections.get(senderId).close();
+                }
+
                 const config = {
                     iceServers: [
                         { urls: 'stun:localhost:3478' }
                     ]
                 };
-                
+
                 const pc = new RTCPeerConnection(config);
-                
-                // Handle remote stream
+                this.peerConnections.set(senderId, pc);
+
+                // Create video element for this sender
+                let videoContainer = document.getElementById(`video-${senderId}`);
+                if (!videoContainer) {
+                    videoContainer = document.createElement('div');
+                    videoContainer.id = `video-${senderId}`;
+                    videoContainer.className = 'video-item';
+
+                    const title = document.createElement('h4');
+                    title.textContent = `Sender: ${senderId}`;
+
+                    const video = document.createElement('video');
+                    video.autoplay = true;
+                    video.playsInline = true;
+                    video.controls = true; // Add controls for debugging
+
+                    videoContainer.appendChild(title);
+                    videoContainer.appendChild(video);
+                    this.videoGrid.appendChild(videoContainer);
+                }
+
+                const videoElement = videoContainer.querySelector('video');
+
+                // Handle Track
                 pc.ontrack = (event) => {
-                    const videoElement = document.getElementById(`video_${streamId}`);
-                    if (videoElement) {
+                    console.log('Track received:', event.streams);
+                    if (event.streams && event.streams[0]) {
                         videoElement.srcObject = event.streams[0];
+                        this.updateStatus('映像を受信中...', 'success');
                     }
                 };
-                
+
                 // Handle ICE candidates
                 pc.onicecandidate = (event) => {
                     if (event.candidate) {
-                        const message = {
+                        const candidateMessage = {
                             type: 'ice_candidate',
-                            connection_id: this.connectionId,
+                            connection_id: senderId, // Target the sender
                             sender_id: this.connectionId,
                             data: event.candidate
                         };
-                        this.ws.send(JSON.stringify(message));
+                        this.ws.send(JSON.stringify(candidateMessage));
                     }
                 };
-                
-                this.peerConnections.set(streamId, pc);
-                return pc;
-            }
-            
-            createVideoElement(streamId, senderId) {
-                // Check if video element already exists
-                if (document.getElementById(`video_${streamId}`)) {
-                    return;
+
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription(message.data));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+
+                    const answerMessage = {
+                        type: 'answer',
+                        connection_id: senderId, // Target the sender
+                        sender_id: this.connectionId,
+                        data: answer
+                    };
+                    this.ws.send(JSON.stringify(answerMessage));
+                    this.updateStatus('アンサー送信完了', 'success');
+
+                } catch (error) {
+                    console.error('Error handling offer:', error);
+                    this.updateStatus(`オファー処理エラー: ${error.message}`, 'error');
                 }
-                
-                const videoItem = document.createElement('div');
-                videoItem.className = 'video-item';
-                videoItem.innerHTML = `
-                    <h4>配信者: ${senderId}</h4>
-                    <video id="video_${streamId}" autoplay playsinline controls></video>
-                `;
-                
-                this.videoGrid.appendChild(videoItem);
             }
-            
+
             async handleIceCandidate(message) {
-                // Find the appropriate peer connection
-                for (const [streamId, pc] of this.peerConnections) {
+                // Find the appropriate peer connection using sender_id
+                // sender_id in the message corresponds to the ID we used to store the PC
+                const senderId = message.sender_id;
+
+                if (senderId && this.peerConnections.has(senderId)) {
+                    const pc = this.peerConnections.get(senderId);
                     if (pc.signalingState !== 'closed') {
                         try {
                             await pc.addIceCandidate(new RTCIceCandidate(message.data));
-                            break;
                         } catch (error) {
-                            // Try next peer connection
+                            console.error("Error adding ICE candidate", error);
                         }
                     }
                 }
             }
-            
+
             generateConnectionId() {
                 return 'viewer_' + Math.random().toString(36).substr(2, 9);
             }
-            
+
             updateStatus(message, type) {
                 this.statusDiv.textContent = message;
                 this.statusDiv.className = `status ${type}`;
                 console.log(`[${type.toUpperCase()}] ${message}`);
             }
         }
-        
+
         // Initialize application
         document.addEventListener('DOMContentLoaded', () => {
             new Cam2WebRTCViewer();
         });
     </script>
 </body>
+
 </html>

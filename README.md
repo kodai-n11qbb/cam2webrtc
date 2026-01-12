@@ -4,8 +4,7 @@ Rustで実装されたWebRTCシグナリングサーバー。カメラ映像を�
 
 ## 機能
 
-- **1on1モード**: 1対1のプライベート配信
-- **1onNモード**: 1対多のブロードキャスト配信
+- **1onN配信 (P2P Mesh)**: 1対多のリアルタイム映像配信（Mesh方式）
 - **内蔵STUNサーバー**: ローカルIPアドレス自動検出
 - **内蔵TURNサーバー**: 同一LAN内での中継対応
 - **WebSocketシグナリング**: 低遅延な通信
@@ -45,11 +44,10 @@ cargo run
 ### Sender側
 
 1. `sender.html` にアクセス
-2. 配信モードを選択 (1on1 または 1onN)
-3. 「カメラ開始」をクリック
-4. 「ルーム作成」をクリック
-5. 「配信開始」をクリック
-6. 表示されたルームIDをViewerに共有
+2. 「カメラ開始」をクリック
+3. 「ルーム作成」をクリック
+4. 「配信開始」をクリック
+5. 表示されたルームIDをViewerに共有
 
 ### Viewer側
 
@@ -79,7 +77,7 @@ cargo run
 
 - **WebSocketポート**: 8080
 - **STUNポート**: 3478
-- **TURNポート**: 49152-65535 (動的割り当て)
+- **TURNポート**: 3479
 
 ## API
 
@@ -91,14 +89,11 @@ cargo run
 POST /api/rooms
 Content-Type: application/json
 
-{
-  "mode": "OneOnOne" | "OneOnN"
-}
+{}
 
 Response:
 {
-  "room_id": "uuid",
-  "mode": "OneOnOne" | "OneOnN"
+  "room_id": "uuid"
 }
 ```
 
