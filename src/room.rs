@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::signaling::{SignalingMessage, SignalingMessageType};
 
 #[derive(Debug, Clone)]
 pub struct Room {
+    #[allow(dead_code)]
     pub id: String,
     pub connections: HashMap<String, ConnectionInfo>,
     pub offers: HashMap<String, SignalingMessage>,
@@ -12,8 +12,10 @@ pub struct Room {
 
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
+    #[allow(dead_code)]
     pub id: String,
     pub is_sender: bool,
+    #[allow(dead_code)]
     pub connected_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -27,7 +29,7 @@ impl Room {
     }
     
     pub fn add_connection(&mut self, connection_id: String, is_sender: bool) -> Result<Vec<String>, String> {
-        let mut removed_ids = Vec::new();
+        let removed_ids = Vec::new();
         
         // If the new connection is a sender, we should check if one already exists
         // (Usually only 1 sender per room in this simple model)

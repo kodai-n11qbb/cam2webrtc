@@ -26,6 +26,7 @@ pub enum SignalingMessageType {
 }
 
 impl SignalingMessage {
+    #[allow(dead_code)]
     pub fn new_join(connection_id: String, is_sender: bool) -> Self {
         Self {
             message_type: SignalingMessageType::Join,
@@ -37,6 +38,7 @@ impl SignalingMessage {
         }
     }
     
+    #[allow(dead_code)]
     pub fn new_offer(
         connection_id: String,
         sender_id: String,
@@ -52,6 +54,7 @@ impl SignalingMessage {
         }
     }
     
+    #[allow(dead_code)]
     pub fn new_answer(
         connection_id: String,
         sender_id: String,
@@ -67,6 +70,7 @@ impl SignalingMessage {
         }
     }
     
+    #[allow(dead_code)]
     pub fn new_ice_candidate(
         connection_id: String,
         sender_id: String,
@@ -82,6 +86,7 @@ impl SignalingMessage {
         }
     }
     
+    #[allow(dead_code)]
     pub fn new_error(connection_id: String, error: String) -> Self {
         Self {
             message_type: SignalingMessageType::Error,
@@ -96,11 +101,13 @@ impl SignalingMessage {
     }
 }
 
+#[allow(dead_code)]
 pub struct SignalingServer {
     // Additional signaling server logic can be added here
 }
 
 impl SignalingServer {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {}
     }

@@ -1,4 +1,4 @@
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket as TokioUdpSocket;
@@ -11,6 +11,7 @@ const ALLOCATE_REQUEST: u16 = 0x0003;
 const ALLOCATE_RESPONSE: u16 = 0x0103;
 const ALLOCATE_ERROR_RESPONSE: u16 = 0x0113;
 const SEND_INDICATION: u16 = 0x0016;
+#[allow(dead_code)]
 const DATA_INDICATION: u16 = 0x0117;
 
 // TURN attribute types
@@ -21,11 +22,17 @@ const DATA: u16 = 0x0013;
 
 #[derive(Debug, Clone)]
 pub struct TurnAllocation {
+    #[allow(dead_code)]
     pub id: String,
+    #[allow(dead_code)]
     pub client_addr: SocketAddr,
+    #[allow(dead_code)]
     pub relayed_addr: SocketAddr,
+    #[allow(dead_code)]
     pub peer_addr: Option<SocketAddr>,
+    #[allow(dead_code)]
     pub lifetime: std::time::Instant,
+    #[allow(dead_code)]
     pub permissions: HashMap<SocketAddr, std::time::Instant>,
 }
 
@@ -237,7 +244,7 @@ impl TurnServer {
         
         // ERROR-CODE attribute
         let error_class = code / 100;
-        let error_number = code % 100;
+        let _error_number = code % 100;
         let reason_bytes = reason.as_bytes();
         let attr_len = 4 + reason_bytes.len() as u16;
         
@@ -265,6 +272,7 @@ impl TurnServer {
         port
     }
     
+    #[allow(dead_code)]
     pub fn get_local_address(&self) -> std::io::Result<SocketAddr> {
         self.socket.local_addr()
     }

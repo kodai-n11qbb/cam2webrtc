@@ -11,12 +11,14 @@ const BINDING_RESPONSE: u16 = 0x0101;
 const BINDING_ERROR_RESPONSE: u16 = 0x0111;
 
 // STUN attribute types
+#[allow(dead_code)]
 const MAPPED_ADDRESS: u16 = 0x0001;
 const XOR_MAPPED_ADDRESS: u16 = 0x0020;
 const ERROR_CODE: u16 = 0x0009;
 
 pub struct StunServer {
     socket: Arc<UdpSocket>,
+    #[allow(dead_code)]
     local_addrs: HashMap<SocketAddr, SocketAddr>,
 }
 
@@ -133,7 +135,7 @@ impl StunServer {
         
         // ERROR-CODE attribute
         let error_class = code / 100;
-        let error_number = code % 100;
+        let _error_number = code % 100;
         let reason_bytes = reason.as_bytes();
         let attr_len = 4 + reason_bytes.len() as u16;
         
@@ -151,6 +153,7 @@ impl StunServer {
         response
     }
     
+    #[allow(dead_code)]
     pub fn get_local_address(&self) -> std::io::Result<SocketAddr> {
         self.socket.local_addr()
     }

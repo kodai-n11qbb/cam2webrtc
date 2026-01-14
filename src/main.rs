@@ -2,7 +2,7 @@ use log::{info, error};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
-use warp::{Filter, Reply};
+use warp::Filter;
 use warp::ws::{WebSocket, Message};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ mod signaling;
 mod config;
 mod network;
 
-use room::{Room, RoomManager};
+use room::RoomManager;
 use signaling::SignalingMessage;
 use stun::StunServer;
 use turn::TurnServer;
@@ -157,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
         .and(warp::path("config"))
         .and(warp::get())
         .and(warp::header::optional::<String>("host"))
-        .map(move |host: Option<String>| {
+        .map(move |_host: Option<String>| {
             let mut config_response = config_api.as_ref().clone();
             
             // If we can determine the server IP, replace localhost in ice_servers
