@@ -1,5 +1,5 @@
 {
-    "signaling_addr": "0.0.0.0:8081",
+    "signaling_addr": "0.0.0.0:8080",
     "stun_addr": "0.0.0.0:3478",
     "turn_addr": "0.0.0.0:3479",
     "ice_servers": [
