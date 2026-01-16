@@ -14,12 +14,14 @@ mod turn;
 mod signaling;
 mod config;
 mod network;
+mod sfu_simple;
 
 use room::RoomManager;
 use signaling::SignalingMessage;
 use stun::StunServer;
 use turn::TurnServer;
 use config::Config;
+use sfu_simple::SimpleSfuManager;
 use std::net::SocketAddr;
 use std::fs;
 use rcgen::generate_simple_self_signed;
@@ -98,11 +100,16 @@ async fn main() -> anyhow::Result<()> {
     // Initialize room manager
     let room_manager = Arc::new(RwLock::new(RoomManager::new()));
     
+    // Initialize SFU manager
+    let sfu_manager = Arc::new(SimpleSfuManager::new());
+    info!("Simple SFU Manager initialized");
+    
     // Initialize clients map
     let clients = Clients::default();
     
     // Clone for WebSocket handler
     let room_manager_ws = room_manager.clone();
+    let sfu_manager_ws = sfu_manager.clone();
     let clients_ws = clients.clone();
     
     // WebSocket route
@@ -110,9 +117,10 @@ async fn main() -> anyhow::Result<()> {
         .and(warp::path::param::<String>())
         .and(warp::ws())
         .and(warp::any().map(move || room_manager_ws.clone()))
+        .and(warp::any().map(move || sfu_manager_ws.clone()))
         .and(warp::any().map(move || clients_ws.clone()))
-        .and_then(|room_id: String, ws: warp::ws::Ws, room_manager: Arc<RwLock<RoomManager>>, clients: Clients| async move {
-            Ok::<_, warp::Rejection>(ws.on_upgrade(move |socket| handle_websocket(socket, room_id, room_manager, clients)))
+        .and_then(|room_id: String, ws: warp::ws::Ws, room_manager: Arc<RwLock<RoomManager>>, sfu_manager: Arc<SimpleSfuManager>, clients: Clients| async move {
+            Ok::<_, warp::Rejection>(ws.on_upgrade(move |socket| handle_websocket(socket, room_id, room_manager, sfu_manager, clients)))
         });
     
     // REST API routes
@@ -228,6 +236,7 @@ async fn handle_websocket(
     socket: WebSocket,
     room_id: String,
     room_manager: Arc<RwLock<RoomManager>>,
+    sfu_manager: Arc<SimpleSfuManager>,
     clients: Clients,
 ) {
     info!("New WebSocket connection for room: {}", room_id);
@@ -248,6 +257,7 @@ async fn handle_websocket(
     });
 
     let room_manager_clone = room_manager.clone();
+    let sfu_manager_clone = sfu_manager.clone();
     let clients_clone = clients.clone();
     let mut current_connection_id: Option<String> = None;
     
@@ -269,8 +279,17 @@ async fn handle_websocket(
                         }
 
                         let mut manager = room_manager_clone.write().await;
-                        if let Some(responses) = manager.handle_message(room_id.clone(), signaling_msg) {
-                            for response in responses {
+                        let mut sfu_responses = Vec::new();
+                        
+                        // Handle SFU logic first
+                        if let Ok(responses) = sfu_manager_clone.handle_message(&room_id, &signaling_msg).await {
+                            sfu_responses.extend(responses);
+                        }
+                        
+                        // Then handle room management
+                        if let Some(mut room_responses) = manager.handle_message(room_id.clone(), signaling_msg) {
+                            room_responses.extend(sfu_responses);
+                            for response in room_responses {
                                 if let Ok(response_text) = serde_json::to_string(&response) {
                                     // Route response to target connection_id
                                     if let Some(target_id) = &response.connection_id {

@@ -1,0 +1,50 @@
+flowchart TD
+  subgraph "Sender (配信者)"
+    S[getUserMedia<br/>カメラ/マイク取得]
+    PC_SENDER["PeerConnection<br/>1つのみ"]
+  end
+  
+  subgraph "SFU Server (Rust)"
+    WS[WebSocket Server]
+    ROOM[Room管理]
+    SFU["SFU Media Server<br/>ストリーム受信・配信"]
+    
+    STUN["内蔵STUN Server<br/>UDP:3478"]
+    TURN["内蔵TURN Server<br/>UDP:3479"]
+  end
+  
+  subgraph "Viewers (視聴者)"
+    V1[Viewer 1<br/>PeerConnection 1つ]
+    V2[Viewer 2<br/>PeerConnection 1つ]
+    VN[Viewer N<br/>PeerConnection 1つ]
+  end
+
+  %% ストリームの流れ
+  S --> PC_SENDER
+
+  %% Signaling Flow
+  PC_SENDER <-->|"WebSocket: Signaling<br/>(Join/Offer/Answer/Ice)"| WS
+  V1 <-->|WebSocket: Signaling| WS
+  V2 <-->|WebSocket: Signaling| WS
+  VN <-->|WebSocket: Signaling| WS
+  
+  %% Server Logic
+  WS --- ROOM
+  WS --- SFU
+  ROOM --- SFU
+  
+  %% ICE/STUN/TURN Flow (Clients connect to SFU)
+  PC_SENDER -.->|UDP: ICE Check| STUN
+  V1 -.->|UDP: ICE Check| STUN
+  V2 -.->|UDP: ICE Check| STUN
+  
+  PC_SENDER -.->|"UDP: Relay (if needed)"| TURN
+  V1 -.->|"UDP: Relay (if needed)"| TURN
+  V2 -.->|"UDP: Relay (if needed)"| TURN
+  
+  %% SFU Data Flow (Hub-and-Spoke)
+  PC_SENDER -->|WebRTC: Media Stream| SFU
+  SFU -->|WebRTC: Forwarded Stream| V1
+  SFU -->|WebRTC: Forwarded Stream| V2
+  SFU -->|WebRTC: Forwarded Stream| VN
+
