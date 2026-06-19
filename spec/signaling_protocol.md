@@ -263,3 +263,86 @@ P2P接続経路（IP、ポート、プロトコル候補）をやり取りする
     }
   }
   ```
+
+---
+
+## 3. 管理用 HTTP REST API 仕様 (HTTP Admin API)
+
+サーバー管理者が遠隔でサーバー稼働状況の監視、アクティブなルーム情報の取得、および特定ルームの強制閉鎖を行うための管理用REST APIです。
+
+### 3.1 認証要件
+管理APIへのアクセスには、すべてのリクエストで以下のヘッダーを付与する必要があります。
+- **ヘッダー名**: `X-Admin-API-Key`
+- **値**: `config.json` に設定された `admin_api_key` トークン文字列
+
+#### 認証エラーレスポンス
+- **APIが無効化されている場合**:
+  - ステータス: `403 Forbidden`
+  - 本文: `{"error": "Forbidden"}`
+- **キーが指定されていない、または誤っている場合**:
+  - ステータス: `401 Unauthorized`
+  - 本文: `{"error": "Unauthorized"}`
+
+---
+
+### 3.2 サーバー状態取得 (Get Server Status)
+サーバーの稼働状態、現在のアクティブなルーム数、および総接続者数を取得します。
+
+- **URL**: `GET /api/admin/status`
+- **レスポンス本文 (JSON)**:
+  - ステータス: `200 OK`
+  - 本文:
+    ```json
+    {
+      "uptime_seconds": 86400,
+      "total_rooms": 3,
+      "total_connections": 8
+    }
+    ```
+
+---
+
+### 3.3 アクリティブなルーム一覧取得 (Get Active Rooms)
+現在作成されているすべてのルームと、各ルームに接続しているクライアント情報（接続ID、ロール、接続時刻）を取得します。
+
+- **URL**: `GET /api/admin/rooms`
+- **レスポンス本文 (JSON)**:
+  - ステータス: `200 OK`
+  - 本文:
+    ```json
+    {
+      "rooms": [
+        {
+          "room_id": "8b51680d-85fa-4f51-b0be-3f11e9f19ef6",
+          "connections": [
+            {
+              "connection_id": "sender_a1b2c3d4",
+              "is_sender": true,
+              "connected_at": "2026-06-19T13:46:17Z"
+            },
+            {
+              "connection_id": "viewer_z9y8x7w6",
+              "is_sender": false,
+              "connected_at": "2026-06-19T13:48:02Z"
+            }
+          ]
+        }
+      ]
+    }
+    ```
+
+---
+
+### 3.4 ルームの強制削除 (Delete Room)
+指定されたルームを強制的にクローズし、ルーム内のすべてのクライアントにWebSocket経由でエラーメッセージを通知した上で切断します。
+
+- **URL**: `DELETE /api/admin/rooms/{room_id}`
+- **URLパラメータ**:
+  - `room_id` (String): 強制削除するルームのUUID
+- **レスポンス本文 (JSON)**:
+  - ルームが正常に閉鎖された場合:
+    - ステータス: `200 OK`
+    - 本文: `{"message": "Room closed successfully"}`
+  - 対象ルームが存在しない場合:
+    - ステータス: `404 Not Found`
+    - 本文: `{"error": "Room not found"}`

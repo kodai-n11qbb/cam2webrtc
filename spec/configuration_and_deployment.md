@@ -20,6 +20,8 @@
 | `tls_enabled` | Boolean | `true` | HTTPSおよびWSS接続（TLS暗号化）を有効にするか。 |
 | `tls_cert_path` | String | `"cert.pem"` | TLSサーバー証明書の保存/読み込みパス。 |
 | `tls_key_path` | String | `"key.pem"` | TLS秘密鍵の保存/読み込みパス。 |
+| `admin_api_enabled` | Boolean | `false` | 管理用HTTP REST API（Uptime取得、ルーム強制終了等）を有効にするか。 |
+| `admin_api_key` | String | `"admin-secret-key"`| 管理用HTTP REST APIへのアクセスに要求する認証用APIキートークン。 |
 
 ### 1.2 `video_constraints` の構造例
 MediaStream APIの制約パラメータを指定します。
