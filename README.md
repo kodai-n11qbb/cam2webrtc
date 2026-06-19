@@ -1,36 +1,30 @@
 # Cam2WebRTC
 
-Rustで実装されたWebRTCシグナリングサーバー。カメラ映像をリアルタイム配信するための完全なオフライン対応システム。
+Rustで実装されたWebRTCシグナリングおよび静的ファイル配信サーバー。カメラ映像をローカルネットワーク（LAN）内で低遅延配信するための完全オフライン対応システム。
 
-## 機能
+---
 
-- **1onN配信 (P2P Mesh)**: 1対多のリアルタイム映像配信（Mesh方式）
-- **内蔵STUNサーバー**: ローカルIPアドレス自動検出
-- **内蔵TURNサーバー**: 同一LAN内での中継対応
-- **外部設定ファイル**: `config.json` による柔軟な構成変更
-- **WebSocketシグナリング**: 低遅延な通信
-- **完全オフライン運用**: インターネット接続不要
+## 1. 特徴
 
-## システムアーキテクチャ
+- **1onN配信 (P2P Mesh)**: 配信者から複数の視聴者に対して、サーバーを介さず直接映像ストリームを送信するMesh型トポロジー。
+- **エントランスポータル (`index.html`)**: 配信者・視聴者用のUI画面へスムーズに遷移するためのグラスモルフィズムデザインを採用したダッシュボード。
+- **内蔵STUNサーバー**: NAT通過（ICE解決）に必要なIP・ポートのペアを検出するUDPサービス（Port: 3478）。
+- **内蔵TURNサーバー (模擬実装)**: クライアント間のメディアデータを中継するためのUDPサービス（Port: 3479）。
+  - *※注意: 現行実装ではパケットのデコードとログ出力のみ行われ、実際のパケット転送（リレー）処理は未実装です。*
+- **TLS自己署名証明書の自動生成**: 起動時に自動でSSL/TLS証明書を生成。同一ネットワーク内のモバイルデバイス（iOS/Android）からカメラを安全に起動（Secure Context要件のクリア）するためのSAN（Subject Alternative Name）設定に対応。
+- **完全オフライン動作**: インターネット接続が不要で、ローカルLAN環境のみで動作。
 
-```
-Sender (HTML) ←→ Rust Signaling Server ←→ Viewer (HTML)
-                    ↓
-            STUN/TURN Servers
-```
+---
 
-## セットアップ
+## 2. クイックスタート
 
-### 1. ビルド
-
+### 2.1 ビルド
 ```bash
 cargo build --release
 ```
 
-### 2. 設定
-
-`config.json` を必要に応じて編集します。
-
+### 2.2 設定
+プロジェクトのルートディレクトリにある `config.json` を編集します。
 ```json
 {
   "signaling_addr": "0.0.0.0:8080",
@@ -51,121 +45,64 @@ cargo build --release
 }
 ```
 
-注意: 初回起動時に自己署名証明書(`cert.pem`, `key.pem`)が自動生成されます。ブラウザでアクセスする際は「詳細設定」から「localhost（またはIP）に移動する」を選択して警告を続行してください。
-
-### 3. 実行
-
+### 2.3 起動
 ```bash
 cargo run
 ```
+初回起動時、自動的に自己署名証明書（`cert.pem` / `key.pem`）が生成されます。
 
-サーバーが設定されたアドレス（デフォルトは `https://localhost:8080`）で起動します。
+### 2.4 アクセス
+ブラウザ（Google Chrome, Safari, Chromium等）で以下のURLを開きます。
+- **エントランスポータル**: `https://localhost:8080/`
+  ポータル画面から「配信者画面（`sender.html`）」または「視聴者画面（`viewer.html`）」へ簡単にアクセスできます。
+- 同一LAN内のスマホなどからアクセスする場合は、起動時にコンソールへ表示されるラズパイやPCのローカルIPアドレス（`https://192.168.x.x:8080/`）へアクセスし、自己署名証明書の警告を許可して進んでください。
 
-### 4. 実行する端末でのアクセス
+---
 
-- **Sender**: `https://localhost:8080/sender.html`
-- **Viewer**: `https://localhost:8080/viewer.html`
-
-### 5. 実行する端末以外・モバイルデバイスからのアクセス
-
-iPhoneやAndroidなどのモバイルデバイスから同じLAN内でアクセスする場合:
-
-1. サーバー起動時にターミナルに表示されるローカルIPアドレスを確認します:
-   ```
-   Access from mobile devices: https://192.168.x.x:8080/sender.html or viewer.html
-   ```
-
-2. モバイルデバイスのブラウザで上記URLにアクセスします。
-
-3. 自己署名証明書の警告が表示されるので、以下の手順で続行します:
-   - **iOS (Safari)**: 「詳細」→「Webサイトを閲覧」
-   - **Android (Chrome)**: 「詳細設定」→「安全でないサイトにアクセスする」
-
-4. カメラ/マイクの権限を求められたら「許可」を選択します。
-
-## 使用方法
-
-### Sender側
-
-1. `sender.html` にアクセス
-2. 「カメラ開始」をクリック（`config.json` の解像度設定が適用されます）
-3. 「ルーム作成」をクリック
-4. 「配信開始」をクリック
-5. 表示されたルームIDをViewerに共有
-
-### Viewer側
-
-1. `viewer.html` にアクセス
-2. ルームIDを入力
-3. 「ルームに接続」をクリック
-4. 自動的に配信が開始される
-
-**自動接続モード**: 常に利用可能なルームを自動検出して接続を試みます。
-
-## 技術仕様
-
-### サーバー技術
-
-- **Rust**: 高性能なメモリ安全な実装
-- **Tokio**: 非同期ランタイム
-- **Warp**: HTTP/WebSocketフレームワーク
-- **STUN/TURN**: RFC 5389/5766準拠（内蔵実装）
-
-### クライアント技術
-
-- **WebRTC**: P2P通信 (Mesh構造)
-- **WebSocket**: シグナリング
-- **MediaStream API**: カメラ/マイクアクセス
-
-### デフォルトネットワーク設定
-
-- **Signaling/HTTP**: 8080
-- **STUN**: 3478
-- **TURN**: 3479
-
-## API
-
-### REST API
-
-#### ルーム作成
-`POST /api/rooms`
-
-#### ルーム確認
-`GET /api/rooms/{room_id}`
-
-#### 設定取得
-`GET /api/config`
-フロントエンドが `ice_servers` や解像度設定を取得するために使用します。
-
-### WebSocket API
-
-#### 接続
-`ws://{addr}/ws/{room_id}`
-
-## 開発
-
-### プロジェクト構造
+## 3. プロジェクト構成
 
 ```
 .
 ├── src/
-│   ├── main.rs          # エントリーポイント
-│   ├── signaling.rs     # シグナリングメッセージ定義
-│   ├── room.rs          # ルーム・接続管理
-│   ├── stun.rs          # STUNサーバー実装
-│   ├── turn.rs          # TURNサーバー実装
-│   └── config.rs        # 設定ファイル管理
+│   ├── main.rs                  # エントリーポイント・Warpルート・シグナリング管理
+│   ├── signaling.rs             # シグナリングメッセージ定義
+│   ├── room.rs                  # ルーム・接続情報管理
+│   ├── stun.rs                  # STUNサーバーバイナリプロトコル実装
+│   ├── turn.rs                  # TURNサーバー割り当て・模擬パケット処理
+│   ├── network.rs               # ローカルIP自動検出・ユーティリティ
+│   └── config.rs                # 設定ファイル読み込み
 ├── static/
-│   ├── sender.html      # 配信者用クライアント
-│   └── viewer.html      # 視聴者用クライアント
-├── config.json          # プロジェクト設定
-└── Cargo.toml           # 依存関係定義
+│   ├── index.html               # ナビゲーションポータル（エントランス）
+│   ├── sender.html              # 配信者（カメラ映像ソース）UI
+│   ├── viewer.html              # 視聴者（プレイヤー）UI
+│   └── global.css               # アプリ全体の共通スタイルシート（デザインシステム）
+├── spec/                        # 技術・構成仕様書
+│   ├── system_architecture.md   # システムアーキテクチャ・シーケンス
+│   ├── signaling_protocol.md    # REST API & WebSocket メッセージ定義
+│   ├── stun_turn_specification.md # STUN/TURN 詳細動作 & 制限事項
+│   ├── client_implementation.md # クライアント側JS仕様 & デザインシステム
+│   ├── configuration_and_deployment.md # 設定・TLS・スマホ警告回避手順
+│   └── raspberrypi_setup.md     # Raspberry Piへの導入・自動起動手順
+├── config.json                  # 設定ファイル
+├── Cargo.toml                   # Rust依存パッケージ管理
+└── LICENSE                      # MITライセンス
 ```
 
-## ライセンス
+---
 
-[MIT License](LICENSE)
+## 4. 詳細仕様書について
 
-## 貢献
+システムの詳細な内部設計や動作仕様、環境構築の手順については、[spec/](spec/) ディレクトリ内の各種ドキュメントを参照してください。
 
-プルリクエストを歓迎します。バグ報告や機能要望はIssueで受け付けています。
+1. **[システム構成・アーキテクチャ仕様書](spec/system_architecture.md)**
+   - 全体の論理アーキテクチャ、非同期モデル、WebRTC接続時の詳細なメッセージシーケンス図。
+2. **[シグナリングプロトコル仕様書](spec/signaling_protocol.md)**
+   - REST API（`/api/rooms`, `/api/config`）のJSONフォーマット、WebSocketでの各シグナリングメッセージ（`join`, `offer`, `answer`, `ice_candidate`等）のスキーマ定義。
+3. **[STUN/TURN サーバー仕様書](spec/stun_turn_specification.md)**
+   - UDPパケット構造とデコード、XORによるポート/アドレス暗号化ロジック、および内蔵TURN中継機能の模擬制限に関する記述。
+4. **[クライアント実装仕様書](spec/client_implementation.md)**
+   - クライアント側WebRTC制御の流れ、Mesh型マルチピア接続、自動再接続ポーリング、および `global.css` をベースとしたデザイン規格。
+5. **[設定とデプロイ仕様書](spec/configuration_and_deployment.md)**
+   - 動作に必要な開放ポート一覧、TLS/HTTPS接続のセキュリティ制約（Secure Context要件）、iOS/Android端末からの証明書警告スキップ手順。
+6. **[Raspberry Pi 導入・セットアップ仕様書](spec/raspberrypi_setup.md)**
+   - ラズパイ上でのネイティブコンパイルおよび開発PCからのクロスコンパイル手順、システム起動時に自動常時バックグラウンド実行するための `Systemd` の構築手順。
