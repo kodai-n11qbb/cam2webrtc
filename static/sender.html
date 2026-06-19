@@ -79,6 +79,9 @@
                     if (response.ok) {
                         this.config = await response.json();
                         console.log('Config loaded:', this.config);
+                        if (this.config && this.config.default_room_id && this.roomIdSpan.textContent === '-') {
+                            this.roomIdSpan.textContent = `${this.config.default_room_id} (未作成)`;
+                        }
                     }
                 } catch (e) {
                     console.error('Failed to load config:', e);

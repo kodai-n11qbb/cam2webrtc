@@ -21,5 +21,6 @@
     "tls_cert_path": "cert.pem",
     "tls_key_path": "key.pem",
     "admin_api_enabled": true,
-    "admin_api_key": "admin-secret-key"
+    "admin_api_key": "admin-secret-key",
+    "default_room_id": "default-room"
 }

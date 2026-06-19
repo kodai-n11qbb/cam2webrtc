@@ -6,7 +6,6 @@ use warp::Filter;
 use warp::ws::{WebSocket, Message};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 mod room;
 mod stun;
@@ -60,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
             tls_key_path: "key.pem".to_string(),
             admin_api_enabled: false,
             admin_api_key: "admin-secret-key".to_string(),
+            default_room_id: "default-room".to_string(),
         }
     });
 
@@ -125,13 +125,15 @@ async fn main() -> anyhow::Result<()> {
     
     let rooms_base = warp::path("api").and(warp::path("rooms"));
 
+    let config_create_room = config_arc.clone();
     let create_room_route = rooms_base
         .and(warp::path::end())
         .and(warp::post())
         .and(warp::body::json())
+        .and(warp::any().map(move || config_create_room.clone()))
         .and(warp::any().map(move || room_manager_api.clone()))
-        .and_then(|_req: CreateRoomRequest, room_manager: Arc<RwLock<RoomManager>>| async move {
-            let room_id = Uuid::new_v4().to_string();
+        .and_then(|_req: CreateRoomRequest, config: Arc<Config>, room_manager: Arc<RwLock<RoomManager>>| async move {
+            let room_id = config.default_room_id.clone();
             let mut manager = room_manager.write().await;
             
             manager.create_room(room_id.clone());
@@ -313,12 +315,12 @@ async fn main() -> anyhow::Result<()> {
 
         info!("Server listening on https://{}", addr);
         info!("Web client UI is available at:");
-        info!("  - Sender (Camera): https://localhost:8080/sender.html");
-        info!("  - Viewer (Monitor): https://localhost:8080/viewer.html");
+        info!("  - Sender (Camera): https://localhost:8080/sender.html?room={}", config_arc.default_room_id);
+        info!("  - Viewer (Monitor): https://localhost:8080/viewer.html?room={}", config_arc.default_room_id);
         
         if let Some(local_ip) = network::get_local_ip() {
-            info!("  - Sender (LAN): https://{}:8080/sender.html", local_ip);
-            info!("  - Viewer (LAN): https://{}:8080/viewer.html", local_ip);
+            info!("  - Sender (LAN): https://{}:8080/sender.html?room={}", local_ip, config_arc.default_room_id);
+            info!("  - Viewer (LAN): https://{}:8080/viewer.html?room={}", local_ip, config_arc.default_room_id);
             info!("Note: You may need to accept the self-signed certificate warning on your mobile device.");
             if config_arc.admin_api_enabled {
                 info!("  - Admin API: https://{}:8080/api/admin/status", local_ip);
@@ -336,12 +338,12 @@ async fn main() -> anyhow::Result<()> {
     } else {
         info!("Server listening on http://{}", addr);
         info!("Web client UI is available at:");
-        info!("  - Sender (Camera): http://localhost:8080/sender.html");
-        info!("  - Viewer (Monitor): http://localhost:8080/viewer.html");
+        info!("  - Sender (Camera): http://localhost:8080/sender.html?room={}", config_arc.default_room_id);
+        info!("  - Viewer (Monitor): http://localhost:8080/viewer.html?room={}", config_arc.default_room_id);
         
         if let Some(local_ip) = network::get_local_ip() {
-            info!("  - Sender (LAN): http://{}:8080/sender.html", local_ip);
-            info!("  - Viewer (LAN): http://{}:8080/viewer.html", local_ip);
+            info!("  - Sender (LAN): http://{}:8080/sender.html?room={}", local_ip, config_arc.default_room_id);
+            info!("  - Viewer (LAN): http://{}:8080/viewer.html?room={}", local_ip, config_arc.default_room_id);
             if config_arc.admin_api_enabled {
                 info!("  - Admin API: http://{}:8080/api/admin/status", local_ip);
             }
@@ -489,6 +491,7 @@ mod tests {
             tls_key_path: "key.pem".to_string(),
             admin_api_enabled: enabled,
             admin_api_key: "test-token".to_string(),
+            default_room_id: "default-room".to_string(),
         })
     }
 

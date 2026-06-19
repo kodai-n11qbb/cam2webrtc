@@ -22,6 +22,7 @@
 | `tls_key_path` | String | `"key.pem"` | TLS秘密鍵の保存/読み込みパス。 |
 | `admin_api_enabled` | Boolean | `false` | 管理用HTTP REST API（Uptime取得、ルーム強制終了等）を有効にするか。 |
 | `admin_api_key` | String | `"admin-secret-key"`| 管理用HTTP REST APIへのアクセスに要求する認証用APIキートークン。 |
+| `default_room_id` | String | `"default-room"`| ルーム作成APIがデフォルトで使用するルームID。接続URLの既定値。 |
 
 ### 1.2 `video_constraints` の構造例
 MediaStream APIの制約パラメータを指定します。

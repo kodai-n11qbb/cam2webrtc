@@ -14,6 +14,7 @@ pub struct Config {
     pub tls_key_path: String,
     pub admin_api_enabled: bool,
     pub admin_api_key: String,
+    pub default_room_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

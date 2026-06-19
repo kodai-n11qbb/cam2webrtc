@@ -75,6 +75,9 @@
                     if (response.ok) {
                         this.config = await response.json();
                         console.log('Config loaded:', this.config);
+                        if (this.config && this.config.default_room_id && !this.roomIdInput.value) {
+                            this.roomIdInput.value = this.config.default_room_id;
+                        }
                     }
                 } catch (e) {
                     console.error('Failed to load config:', e);
