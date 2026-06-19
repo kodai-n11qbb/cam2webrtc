@@ -12,6 +12,8 @@ pub struct Config {
     pub tls_enabled: bool,
     pub tls_cert_path: String,
     pub tls_key_path: String,
+    pub admin_api_enabled: bool,
+    pub admin_api_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

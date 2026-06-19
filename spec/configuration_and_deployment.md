@@ -17,7 +17,7 @@
 | `turn_addr` | String | `"0.0.0.0:3479"` | 内蔵TURNサーバーが使用するUDPバインドIPとポート。 |
 | `ice_servers` | Array | `[{"urls":["stun:localhost:3478"]}]` | WebRTC接続時にクライアントに提供されるICEサーバーのリスト。 |
 | `video_constraints`| Object | *後述* | カメラ起動時の要求ビデオスペック（解像度など）。 |
-| `tls_enabled` | Boolean | `true` | HTTPSおよびWSS接続（TLS暗号化）を有効にするか。 |
+| `tls_enabled` | Boolean | `false` | HTTPSおよびWSS接続（TLS暗号化）を有効にするか。 |
 | `tls_cert_path` | String | `"cert.pem"` | TLSサーバー証明書の保存/読み込みパス。 |
 | `tls_key_path` | String | `"key.pem"` | TLS秘密鍵の保存/読み込みパス。 |
 | `admin_api_enabled` | Boolean | `false` | 管理用HTTP REST API（Uptime取得、ルーム強制終了等）を有効にするか。 |
@@ -60,7 +60,7 @@ Secure Contextとして認められるのは以下のいずれかのみです。
 1. `localhost` または `127.0.0.1` 経由のアクセス
 2. **`https://` (TLS暗号化)** 経由のアクセス
 
-したがって、同じLAN内の別のPCやスマートフォンなどのモバイルデバイスから接続して配信を行う場合、HTTP（`http://192.168.X.X:8080`）ではカメラが起動せず、動作させることができません。このため、本システムではデフォルトで `tls_enabled: true` となっています。
+したがって、同じLAN内の別のPCやスマートフォンなどのモバイルデバイスから接続して配信を行う場合、HTTP（`http://192.168.X.X:8080`）ではカメラが起動せず、動作させることができません。このため、モバイルデバイス等からカメラ（Sender）にアクセスして配信を行う場合は、`config.json` にて `tls_enabled: true` に設定する必要があります（本システムではデフォルトで `tls_enabled: false` となっています）。
 
 ### 3.2 サーバー側での自己署名証明書自動生成
 本システムでは、起動時に `tls_cert_path` および `tls_key_path` で指定された場所に証明書が存在しない場合、Rustのライブラリ `rcgen` を用いて自己署名証明書を自動生成します。

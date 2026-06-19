@@ -281,5 +281,74 @@ impl RoomManager {
         
         Some(responses)
     }
+
+    pub fn get_rooms_status(&self) -> serde_json::Value {
+        let mut rooms_list = Vec::new();
+        for (room_id, room) in &self.rooms {
+            let connections: Vec<serde_json::Value> = room.connections.values().map(|c| {
+                serde_json::json!({
+                    "connection_id": c.id,
+                    "is_sender": c.is_sender,
+                    "connected_at": c.connected_at.to_rfc3339()
+                })
+            }).collect();
+
+            rooms_list.push(serde_json::json!({
+                "room_id": room_id,
+                "connections": connections
+            }));
+        }
+        serde_json::Value::Array(rooms_list)
+    }
+
+    pub fn get_total_connections(&self) -> usize {
+        self.rooms.values().map(|r| r.get_connection_count()).sum()
+    }
+
+    pub fn delete_room(&mut self, room_id: &str) -> Option<Vec<String>> {
+        let room = self.rooms.remove(room_id)?;
+        let connection_ids = room.connections.keys().cloned().collect();
+        Some(connection_ids)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_admin_room_management() {
+        let mut manager = RoomManager::new();
+        manager.create_room("room-1".to_string());
+        assert_eq!(manager.rooms.len(), 1);
+
+        // Add a connection
+        let conn_id = "peer-1".to_string();
+        {
+            let room = manager.rooms.get_mut("room-1").unwrap();
+            let _ = room.add_connection(conn_id.clone(), true);
+        }
+
+        assert_eq!(manager.get_total_connections(), 1);
+
+        // Check rooms status
+        let status = manager.get_rooms_status();
+        assert!(status.is_array());
+        let rooms_arr = status.as_array().unwrap();
+        assert_eq!(rooms_arr.len(), 1);
+        assert_eq!(rooms_arr[0]["room_id"], "room-1");
+        
+        let conns = rooms_arr[0]["connections"].as_array().unwrap();
+        assert_eq!(conns.len(), 1);
+        assert_eq!(conns[0]["connection_id"], "peer-1");
+        assert_eq!(conns[0]["is_sender"], true);
+
+        // Delete room
+        let disconnected = manager.delete_room("room-1").unwrap();
+        assert_eq!(disconnected.len(), 1);
+        assert_eq!(disconnected[0], "peer-1");
+        assert_eq!(manager.rooms.len(), 0);
+        assert_eq!(manager.get_total_connections(), 0);
+    }
 }
 

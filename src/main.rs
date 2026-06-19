@@ -40,6 +40,8 @@ pub struct RoomResponse {
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
     
+    let boot_time = std::time::Instant::now();
+    
     info!("Starting Cam2WebRTC Signaling Server...");
 
     let config = Config::load("config.json").unwrap_or_else(|e| {
@@ -53,9 +55,11 @@ async fn main() -> anyhow::Result<()> {
                 "width": { "ideal": 1280 },
                 "height": { "ideal": 720 }
             }),
-            tls_enabled: true,
+            tls_enabled: false,
             tls_cert_path: "cert.pem".to_string(),
             tls_key_path: "key.pem".to_string(),
+            admin_api_enabled: false,
+            admin_api_key: "admin-secret-key".to_string(),
         }
     });
 
@@ -176,7 +180,113 @@ async fn main() -> anyhow::Result<()> {
             warp::reply::json(&config_response)
         });
 
-    let api_routes = create_room_route.or(get_room_route).or(config_route);
+    // Admin API Routes
+    let room_manager_status = room_manager.clone();
+    let config_status = config_arc.clone();
+    let admin_status = warp::path!("api" / "admin" / "status")
+        .and(warp::get())
+        .and(warp::header::optional::<String>("x-admin-api-key"))
+        .and(warp::any().map(move || config_status.clone()))
+        .and(warp::any().map(move || boot_time))
+        .and(warp::any().map(move || room_manager_status.clone()))
+        .and_then(|key_opt: Option<String>, config: Arc<Config>, boot_time: std::time::Instant, room_manager: Arc<RwLock<RoomManager>>| async move {
+            if let Err(reply) = check_admin_auth(key_opt.as_deref(), &config) {
+                return Ok::<_, warp::Rejection>(reply);
+            }
+            
+            let uptime = std::time::Instant::now().duration_since(boot_time).as_secs();
+            let manager = room_manager.read().await;
+            let total_rooms = manager.rooms.len();
+            let total_connections = manager.get_total_connections();
+            
+            Ok::<_, warp::Rejection>(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "uptime_seconds": uptime,
+                    "total_rooms": total_rooms,
+                    "total_connections": total_connections
+                })),
+                warp::http::StatusCode::OK
+            ))
+        });
+
+    let room_manager_rooms = room_manager.clone();
+    let config_rooms = config_arc.clone();
+    let admin_rooms = warp::path!("api" / "admin" / "rooms")
+        .and(warp::get())
+        .and(warp::header::optional::<String>("x-admin-api-key"))
+        .and(warp::any().map(move || config_rooms.clone()))
+        .and(warp::any().map(move || room_manager_rooms.clone()))
+        .and_then(|key_opt: Option<String>, config: Arc<Config>, room_manager: Arc<RwLock<RoomManager>>| async move {
+            if let Err(reply) = check_admin_auth(key_opt.as_deref(), &config) {
+                return Ok::<_, warp::Rejection>(reply);
+            }
+            
+            let manager = room_manager.read().await;
+            let rooms_status = manager.get_rooms_status();
+            
+            Ok::<_, warp::Rejection>(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "rooms": rooms_status
+                })),
+                warp::http::StatusCode::OK
+            ))
+        });
+
+    let room_manager_del = room_manager.clone();
+    let config_del = config_arc.clone();
+    let clients_del = clients.clone();
+    let admin_delete_room = warp::path!("api" / "admin" / "rooms" / String)
+        .and(warp::delete())
+        .and(warp::header::optional::<String>("x-admin-api-key"))
+        .and(warp::any().map(move || config_del.clone()))
+        .and(warp::any().map(move || room_manager_del.clone()))
+        .and(warp::any().map(move || clients_del.clone()))
+        .and_then(|room_id: String, key_opt: Option<String>, config: Arc<Config>, room_manager: Arc<RwLock<RoomManager>>, clients: Clients| async move {
+            if let Err(reply) = check_admin_auth(key_opt.as_deref(), &config) {
+                return Ok::<_, warp::Rejection>(reply);
+            }
+            
+            let mut manager = room_manager.write().await;
+            if let Some(connections) = manager.delete_room(&room_id) {
+                let clients_guard = clients.read().await;
+                for cid in connections {
+                    if let Some(tx) = clients_guard.get(&cid) {
+                        let leave_msg = SignalingMessage {
+                            message_type: signaling::SignalingMessageType::Error,
+                            connection_id: Some(cid.clone()),
+                            sender_id: None,
+                            offer_id: None,
+                            data: Some(serde_json::json!({
+                                "error": "Room closed by administrator"
+                            })),
+                            is_sender: None,
+                        };
+                        if let Ok(text) = serde_json::to_string(&leave_msg) {
+                            let _ = tx.send(Message::text(text));
+                        }
+                    }
+                }
+                
+                drop(clients_guard);
+                
+                Ok::<_, warp::Rejection>(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({"message": "Room closed successfully"})),
+                    warp::http::StatusCode::OK
+                ))
+            } else {
+                Ok::<_, warp::Rejection>(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({"error": "Room not found"})),
+                    warp::http::StatusCode::NOT_FOUND
+                ))
+            }
+        });
+
+    let api_routes = create_room_route
+        .or(get_room_route)
+        .or(config_route)
+        .or(admin_status)
+        .or(admin_rooms)
+        .or(admin_delete_room);
     
     // Static file serving for HTML clients
     let static_files = warp::fs::dir("static");
@@ -202,10 +312,19 @@ async fn main() -> anyhow::Result<()> {
         }
 
         info!("Server listening on https://{}", addr);
+        info!("Web client UI is available at:");
+        info!("  - Sender (Camera): https://localhost:8080/sender.html");
+        info!("  - Viewer (Monitor): https://localhost:8080/viewer.html");
         
         if let Some(local_ip) = network::get_local_ip() {
-            info!("Access from mobile devices: https://{}:8080/sender.html or viewer.html", local_ip);
+            info!("  - Sender (LAN): https://{}:8080/sender.html", local_ip);
+            info!("  - Viewer (LAN): https://{}:8080/viewer.html", local_ip);
             info!("Note: You may need to accept the self-signed certificate warning on your mobile device.");
+            if config_arc.admin_api_enabled {
+                info!("  - Admin API: https://{}:8080/api/admin/status", local_ip);
+            }
+        } else if config_arc.admin_api_enabled {
+            info!("  - Admin API: https://localhost:8080/api/admin/status");
         }
         
         warp::serve(routes)
@@ -216,6 +335,19 @@ async fn main() -> anyhow::Result<()> {
             .await;
     } else {
         info!("Server listening on http://{}", addr);
+        info!("Web client UI is available at:");
+        info!("  - Sender (Camera): http://localhost:8080/sender.html");
+        info!("  - Viewer (Monitor): http://localhost:8080/viewer.html");
+        
+        if let Some(local_ip) = network::get_local_ip() {
+            info!("  - Sender (LAN): http://{}:8080/sender.html", local_ip);
+            info!("  - Viewer (LAN): http://{}:8080/viewer.html", local_ip);
+            if config_arc.admin_api_enabled {
+                info!("  - Admin API: http://{}:8080/api/admin/status", local_ip);
+            }
+        } else if config_arc.admin_api_enabled {
+            info!("  - Admin API: http://localhost:8080/api/admin/status");
+        }
         warp::serve(routes)
             .run(addr)
             .await;
@@ -318,5 +450,120 @@ async fn handle_websocket(
         info!("WebSocket connection closed for room: {}, connection: {}", room_id, cid);
     } else {
         info!("WebSocket connection closed for room: {} (no connection_id established)", room_id);
+    }
+}
+
+fn check_admin_auth(
+    key_opt: Option<&str>,
+    config: &Config,
+) -> Result<(), warp::reply::WithStatus<warp::reply::Json>> {
+    if !config.admin_api_enabled {
+        return Err(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({"error": "Forbidden"})),
+            warp::http::StatusCode::FORBIDDEN,
+        ));
+    }
+    if key_opt != Some(&config.admin_api_key) {
+        return Err(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({"error": "Unauthorized"})),
+            warp::http::StatusCode::UNAUTHORIZED,
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use warp::http::StatusCode;
+
+    fn test_config(enabled: bool) -> Arc<Config> {
+        Arc::new(Config {
+            signaling_addr: "0.0.0.0:8080".to_string(),
+            stun_addr: "0.0.0.0:3478".to_string(),
+            turn_addr: "0.0.0.0:3479".to_string(),
+            ice_servers: vec![],
+            video_constraints: serde_json::json!({}),
+            tls_enabled: false,
+            tls_cert_path: "cert.pem".to_string(),
+            tls_key_path: "key.pem".to_string(),
+            admin_api_enabled: enabled,
+            admin_api_key: "test-token".to_string(),
+        })
+    }
+
+    #[tokio::test]
+    async fn test_admin_api_disabled() {
+        let config = test_config(false);
+
+        let route = warp::path!("api" / "admin" / "status")
+            .and(warp::get())
+            .and(warp::header::optional::<String>("x-admin-api-key"))
+            .and(warp::any().map(move || config.clone()))
+            .and_then(|key_opt: Option<String>, config: Arc<Config>| async move {
+                if let Err(reply) = check_admin_auth(key_opt.as_deref(), &config) {
+                    return Ok::<_, warp::Rejection>(reply);
+                }
+                Ok::<_, warp::Rejection>(warp::reply::with_status(warp::reply::json(&serde_json::json!({})), StatusCode::OK))
+            });
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/api/admin/status")
+            .header("x-admin-api-key", "test-token")
+            .reply(&route)
+            .await;
+
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_admin_api_unauthorized() {
+        let config = test_config(true);
+
+        let route = warp::path!("api" / "admin" / "status")
+            .and(warp::get())
+            .and(warp::header::optional::<String>("x-admin-api-key"))
+            .and(warp::any().map(move || config.clone()))
+            .and_then(|key_opt: Option<String>, config: Arc<Config>| async move {
+                if let Err(reply) = check_admin_auth(key_opt.as_deref(), &config) {
+                    return Ok::<_, warp::Rejection>(reply);
+                }
+                Ok::<_, warp::Rejection>(warp::reply::with_status(warp::reply::json(&serde_json::json!({})), StatusCode::OK))
+            });
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/api/admin/status")
+            .header("x-admin-api-key", "wrong-token")
+            .reply(&route)
+            .await;
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_admin_api_authorized() {
+        let config = test_config(true);
+
+        let route = warp::path!("api" / "admin" / "status")
+            .and(warp::get())
+            .and(warp::header::optional::<String>("x-admin-api-key"))
+            .and(warp::any().map(move || config.clone()))
+            .and_then(|key_opt: Option<String>, config: Arc<Config>| async move {
+                if let Err(reply) = check_admin_auth(key_opt.as_deref(), &config) {
+                    return Ok::<_, warp::Rejection>(reply);
+                }
+                Ok::<_, warp::Rejection>(warp::reply::with_status(warp::reply::json(&serde_json::json!({"ok": true})), StatusCode::OK))
+            });
+
+        let resp = warp::test::request()
+            .method("GET")
+            .path("/api/admin/status")
+            .header("x-admin-api-key", "test-token")
+            .reply(&route)
+            .await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }
