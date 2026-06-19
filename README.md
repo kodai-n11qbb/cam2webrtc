@@ -41,7 +41,7 @@ cargo run
     "width": { "ideal": 1280 },
     "height": { "ideal": 720 }
   },
-  "tls_enabled": true,
+  "tls_enabled": false,
   "tls_cert_path": "cert.pem",
   "tls_key_path": "key.pem"
 }
