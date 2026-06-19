@@ -30,11 +30,11 @@ NATデバイスによるアドレス書き換え対策として、IPアドレス
   クライアントの送信元ポート番号に対して、Magic Cookieの上位16ビット（`0x2112`）でXOR演算を行います。
   $$\text{Encoded Port} = \text{Source Port} \oplus \text{0x2112}$$
 - **IPv4アドレスの暗号化**:
-  クライアントの送信元IPv4アドレス（4バイト）の各オクテットに対して、Magic Cookie（`0x2112A442`）の対応する各バイトでXOR演算を行います。
+  本実装では簡易化のため、クライアントの送信元IPv4アドレス（4バイト）のすべてのオクテットに対して、固定値 `0x21` でXOR演算を行います（※Magic Cookieの各バイトによるXORではありません）。
   - 第1オクテット $\oplus$ `0x21`
-  - 第2オクテット $\oplus$ `0x12`
-  - 第3オクテット $\oplus$ `0xA4`
-  - 第4オクテット $\oplus$ `0x42`
+  - 第2オクテット $\oplus$ `0x21`
+  - 第3オクテット $\oplus$ `0x21`
+  - 第4オクテット $\oplus$ `0x21`
 
 ---
 
@@ -61,10 +61,10 @@ TURN（Traversal Using Relays around NAT: RFC 5766）は、P2Pでの直接通信
 
 ---
 
-## 3. 重要：TURNサーバーの実装上の制限事項
+## 3. 重要：STUN/TURNサーバーの実装上の制限事項
 
 > [!WARNING]
-> **本プロジェクトの内蔵TURNサーバーは完全なデータ中継に対応していません。**
+> **本プロジェクトの内蔵STUN/TURNサーバーは標準仕様を簡略化したカスタム実装です。**
 > 以下の重大な仕様制限があるため、実運用時や厳しいNAT環境下での利用時には注意が必要です。
 
 ### 3.1 メディアデータ中継機能の欠落（ログ出力のみ）
@@ -90,3 +90,8 @@ if let (Some(peer), Some(data_bytes)) = (peer_addr, data) {
 ### 3.3 チャンネルバインドの未対応
 通信効率化のための標準仕様である `ChannelBind`（チャンネル割り当て要求 `0x0009`）には対応していません。
 クライアントがチャンネルバインドを試みた場合、サポート外のメッセージタイプとしてエラーが返却されます。
+
+### 3.4 IPアドレス暗号化・復号化の簡易実装 (0x21でのXOR)
+RFC 5389に定義される `XOR-MAPPED-ADDRESS` や、RFC 5766に定義される `XOR-RELAYED-ADDRESS`、`XOR-PEER-ADDRESS` では、IPv4アドレスの各オクテットに対して Magic Cookie (`0x2112A442`) の対応するバイトで XOR 演算を行う必要があります。
+しかし、本プロジェクトの内蔵 STUN/TURN サーバー実装 ([src/stun.rs](file:///Users/abekoudai/Desktop/cam2webrtc/src/stun.rs)、[src/turn.rs](file:///Users/abekoudai/Desktop/cam2webrtc/src/turn.rs)) では、すべてのオクテットに対して固定値 `0x21` を用いて XOR 演算を行う簡易実装となっています。
+標準的な STUN/TURN クライアントと通信する場合、この暗号化方式の不一致によってクライアント側で IP アドレスが正しくデコードできず、接続エラーとなる可能性があります（本システムのバニラ JS クライアントはブラウザ標準の WebRTC API を介して通信するため、本サーバー側の STUN 反射アドレスを利用した P2P 接続は同一マシン上の localhost もしくは LAN 内の特定の NAT 環境でのみ期待通りに動作します）。

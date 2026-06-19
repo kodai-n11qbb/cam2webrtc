@@ -35,13 +35,13 @@
 - **URL**: `GET /api/rooms/{room_id}`
 - **URLパラメータ**:
   - `room_id` (String): 検証対象のルームUUID
-- **レスポンス本文 (JSON)**:
-  - ルームが存在する場合:
+- **レスポンス本文**:
+  - ルームが存在する場合 (JSON):
     - ステータス: `200 OK`
     - 本文: `{"exists": true}`
-  - ルームが存在しない場合:
+  - ルームが存在しない場合 (Plain Text):
     - ステータス: `404 Not Found`
-    - 本文: `{"error": "Not Found"}`
+    - 本文: `not found` (Warpのデフォルトのリジェクション応答)
 
 ---
 
